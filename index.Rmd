@@ -181,7 +181,7 @@ for (i in 1:nrow(existing_files.df)) {
 
 And this is how the situation on the ground has evolved. 
 
-```{r fig.cap = "Ukranian territory occupied by Russian", out.width = "100%", fig.width = 9, fig.height = 4}
+```{r out.width = "100%", fig.width = 9, fig.height = 4, dev = 'svg'}
 
 territory_control.df %>%
   dplyr::arrange(posix) %>%
@@ -192,7 +192,25 @@ territory_control.df %>%
   geom_area() + 
   geom_smooth(se = FALSE) +
   theme_bw() +
-  labs(x = NULL, y = "km2") +
+  labs(x = NULL, y = "km2", 
+       title = "Ukranian territory occupied by Russia and pro-Russian forces", 
+       caption = "Source: https://upload.wikimedia.org/wikipedia/commons/4/4f/2022_Russian_invasion_of_Ukraine.svg") +
+  scale_y_continuous(labels = scales::comma)
+
+territory_control.df %>%
+  dplyr::arrange(posix) %>%
+  dplyr::group_by(sixhour_cut = cut(posix, "6 hours")) %>%
+  dplyr::summarise_all(mean) %>%
+  dplyr::mutate(russian_control_km2 = russian_control * pixel_km2,
+                russian_control_diff_km2 = 
+                  lead(russian_control_km2) - russian_control_km2) %>%
+  ggplot(aes(x = as.POSIXct(sixhour_cut), y = russian_control_diff_km2)) +
+  geom_bar(stat = "identity") + 
+  geom_smooth() +
+  theme_bw() +
+  labs(x = NULL, y = "km2",
+       title = "New Ukrainian territory occupied by Russia (every 6 hours)",
+       caption = "Source: https://upload.wikimedia.org/wikipedia/commons/4/4f/2022_Russian_invasion_of_Ukraine.svg") +
   scale_y_continuous(labels = scales::comma)
 
 ```
