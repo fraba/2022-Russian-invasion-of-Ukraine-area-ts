@@ -1,0 +1,200 @@
+---
+title: "Back-of-the-envelope quantification of Ukraine's territory invaded by Russia"
+author: "Francesco Bailo"
+date: '2022-03-17'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+```{r funs}
+
+toTable <- function(filepath) {
+  
+  # Credits: https://stackoverflow.com/a/41145859/1707938
+  
+  require(rsvg)
+  require(magick)
+  require(raster)
+  
+  bitmap <- 
+    rsvg::rsvg_raw(filepath, 
+                   width = 2199, height = 1478)
+  
+  img <- 
+    magick::image_read(bitmap)
+  
+  raster <- 
+    as.raster(img)
+  
+  tab <- 
+    table(raster)
+  
+  tab <- 
+    data.frame(Color = names(tab), Count = as.integer(tab))
+  
+  return(tab)
+  
+}
+
+```
+
+```{r}
+
+library(tidyverse)
+library(rsvg)
+library(magick)
+library(raster)
+library(knitr)
+
+bitmap <- 
+  rsvg::rsvg_raw("raw-images/20220224070044%212022_Russian_invasion_of_Ukraine.svg", 
+                 width = 2199, height = 1478)
+
+img <- 
+  magick::image_read(bitmap)
+
+raster <- 
+  raster::as.raster(img)
+
+tab <- 
+  table(raster)
+
+tab <- 
+  data.frame(Color = names(tab), Count = as.integer(tab))
+
+
+top_tab <- 
+  tab %>%
+  dplyr::group_by() %>%
+  dplyr::top_n(10, wt = Count) %>%
+  dplyr::arrange(desc(Count)) %>%
+  dplyr::mutate(Color = factor(Color, levels = Color))
+
+col_palette <- 
+  as.character(top_tab$Color)
+
+names(col_palette) <- 
+  col_palette
+
+```
+
+ This is the map curated by Wikipedia editors of the Russian invasion of Ukraine
+
+```{r, fig.cap = "2022 Russian invasion of Ukraine (Source: https://commons.wikimedia.org/wiki/File:2022_Russian_invasion_of_Ukraine.svg)"}
+
+image_trim(img)
+
+```
+
+ These are the number of pixels for each color used in the map
+
+```{r}
+
+top_tab %>%
+  kable()
+
+```
+
+```{r fig.width=10, fig.height = 4, dev = 'svg'}
+
+ggplot(top_tab, aes(x = Color, y = Count, fill = Color)) +
+  geom_bar(stat = 'identity') +
+  scale_fill_manual(values = col_palette) +
+  theme_bw()
+
+```
+
+```{r}
+
+ukrainian_control <- 
+  "#e3d975ff"
+
+russian_control <- 
+  "#ebc0b3ff"
+
+```
+
+The territory under Ukrainian control is ``r ukrainian_control`` while territory under Russian control is ``r russian_control``.
+
+
+```{r}
+
+library(stringr)
+
+raw_image_dir <- 
+  "raw-images/"
+
+existing_files <- 
+  list.files(path = raw_image_dir)
+
+existing_files.df <- 
+  data.frame(filepath = existing_files,
+             posix = as.POSIXct(stringr::str_extract(existing_files, "^[0-9]{14}"), 
+                                format = "%Y%m%d%H%M%S"))
+
+```
+
+
+Wikipedia's editors have produced `r nrow(existing_files.df)` maps describing the evolution of the situation on the ground with the first map published on `r format( min(existing_files.df$posix), format = "%d %B %Y")` and the last on `r format( max(existing_files.df$posix), format = "%d %B %Y")`. That is an updated map approximately every `r round(as.numeric(difftime(max(existing_files.df$posix), min(existing_files.df$posix), units="hours")) / nrow(existing_files.df))` hours.
+
+The total area of Ukraine is $603,628km{2}$, which in terms of pixels is given by $ukrainian\_control\_pixels + russian\_control\_pixels$. You might have noticed that there are a number of arrows and other symbols covering the map, this reduces the accuracy of the territory quantification (if you know how to programmatically remove them from the raw SVG let me know!).
+
+```{r}
+
+pixel_km2 <- 
+  603628 / 
+  (top_tab$Count[top_tab$Color == ukrainian_control] + 
+     top_tab$Count[top_tab$Color == russian_control])
+    
+  
+
+```
+
+So, based on this very back-of-the-envelop calculation, a pixel is approximately `r round(pixel_km2, 2)` $km{2}$.
+
+```{r, cache = TRUE}
+
+territory_control.df <-
+  data.frame()
+
+for (i in 1:nrow(existing_files.df)) {
+  
+  this_tab <- 
+    toTable(paste0(raw_image_dir, existing_files.df$filepath[i]))
+  
+  territory_control.df <-
+    territory_control.df %>%
+    dplyr::bind_rows(data.frame(posix = existing_files.df$posix[i],
+                                ukrainian_control = 
+                                  this_tab$Count[this_tab$Color == ukrainian_control],
+                                russian_control = 
+                                  this_tab$Count[this_tab$Color == russian_control]))
+  
+  
+}
+
+
+```
+
+And this is how the situation on the ground has evolved. 
+
+```{r fig.cap = "Ukranian territory occupied by Russian", out.width = "100%", fig.width = 9, fig.height = 4}
+
+territory_control.df %>%
+  dplyr::arrange(posix) %>%
+  dplyr::group_by(sixhour_cut = cut(posix, "6 hours")) %>%
+  dplyr::summarise_all(mean) %>%
+  dplyr::mutate(russian_control_km2 = russian_control * pixel_km2) %>%
+  ggplot(aes(x = as.POSIXct(sixhour_cut), y = russian_control_km2)) +
+  geom_area() + 
+  geom_smooth(se = FALSE) +
+  theme_bw() +
+  labs(x = NULL, y = "km2") +
+  scale_y_continuous(labels = scales::comma)
+
+```
+
+
