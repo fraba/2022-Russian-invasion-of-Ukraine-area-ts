@@ -49,8 +49,48 @@ library(magick)
 library(raster)
 library(knitr)
 
+raw_image_dir <- 
+  "raw-images/"
+
+existing_files <- 
+  list.files(path = raw_image_dir)
+
+edited_images_dir <-
+  "edited-images/"
+
+# for (file in existing_files) {
+#  
+#   file.copy(from = paste0(raw_image_dir, file), 
+#             to = paste0(edited_images_dir, 
+#                         gsub("%212022_Russian_invasion_of_Ukraine", "", file)), 
+#           overwrite = TRUE, recursive = FALSE, 
+#           copy.mode = TRUE)
+#    
+# }
+
+existing_files <- 
+  list.files(path = edited_images_dir)
+
+# Remove SVG details
+
+# system(
+#   sprintf("/opt/homebrew/bin/xmlstarlet ed -L -d \"//svg:path[contains(@id, 'path18689')]\" %s/*.svg", 
+#           edited_images_dir))
+# 
+# system(
+#   sprintf("/opt/homebrew/bin/xmlstarlet ed -L -d \"//svg:path[contains(@id, 'path35')]\" %s/*.svg", 
+#           edited_images_dir))
+# 
+# system(
+#   sprintf("/opt/homebrew/bin/xmlstarlet ed -L -d \"//svg:path[contains(@id, 'circle')]\" %s/*.svg", 
+#           edited_images_dir))
+# 
+# system(
+#   sprintf("/opt/homebrew/bin/xmlstarlet ed -L -d \"//svg:path[contains(@id, 'g55')]\" %s/*.svg", 
+#           edited_images_dir))
+
 bitmap <- 
-  rsvg::rsvg_raw("raw-images/20220224070044%212022_Russian_invasion_of_Ukraine.svg", 
+  rsvg::rsvg_raw("edited-images/20220224070044.svg", 
                  width = 2199, height = 1478)
 
 img <- 
@@ -64,7 +104,6 @@ tab <-
 
 tab <- 
   data.frame(Color = names(tab), Count = as.integer(tab))
-
 
 top_tab <- 
   tab %>%
@@ -124,12 +163,6 @@ The territory under Ukrainian control is ``r ukrainian_control`` while territory
 
 library(stringr)
 
-raw_image_dir <- 
-  "raw-images/"
-
-existing_files <- 
-  list.files(path = raw_image_dir)
-
 existing_files.df <- 
   data.frame(filepath = existing_files,
              posix = as.POSIXct(stringr::str_extract(existing_files, "^[0-9]{14}"), 
@@ -163,7 +196,7 @@ territory_control.df <-
 for (i in 1:nrow(existing_files.df)) {
   
   this_tab <- 
-    toTable(paste0(raw_image_dir, existing_files.df$filepath[i]))
+    toTable(paste0(edited_images_dir, existing_files.df$filepath[i]))
   
   territory_control.df <-
     territory_control.df %>%
@@ -181,7 +214,7 @@ for (i in 1:nrow(existing_files.df)) {
 
 And this is how the situation on the ground has evolved. 
 
-```{r out.width = "100%", fig.width = 9, fig.height = 4, dev = 'svg'}
+```{r out.width = "100%", fig.width = 9, fig.height = 3, dev = 'svg'}
 
 territory_control.df %>%
   dplyr::arrange(posix) %>%
@@ -189,7 +222,7 @@ territory_control.df %>%
   dplyr::summarise_all(mean) %>%
   dplyr::mutate(russian_control_km2 = russian_control * pixel_km2) %>%
   ggplot(aes(x = as.POSIXct(sixhour_cut), y = russian_control_km2)) +
-  geom_area() + 
+  geom_area(fill = "#ebc0b3ff") + 
   geom_smooth(se = FALSE) +
   theme_bw() +
   labs(x = NULL, y = "km2", 
@@ -205,7 +238,7 @@ territory_control.df %>%
                 russian_control_diff_km2 = 
                   lead(russian_control_km2) - russian_control_km2) %>%
   ggplot(aes(x = as.POSIXct(sixhour_cut), y = russian_control_diff_km2)) +
-  geom_bar(stat = "identity") + 
+  geom_bar(stat = "identity", fill = "#ebc0b3ff") + 
   geom_smooth() +
   theme_bw() +
   labs(x = NULL, y = "km2",
