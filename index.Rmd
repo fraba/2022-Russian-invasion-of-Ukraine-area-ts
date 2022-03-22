@@ -1,7 +1,7 @@
 ---
 title: "Back-of-the-envelope quantification of Ukraine's territory invaded by Russia"
 author: "Francesco Bailo"
-date: '2022-03-17'
+date: '`r Sys.Date()`'
 output: html_document
 ---
 
